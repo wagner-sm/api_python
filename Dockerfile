@@ -37,14 +37,23 @@ RUN apt-get update && \
 # Criar link simbólico para python
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-# Encontrar e configurar o ChromeDriver que vem com a imagem
-RUN CHROMEDRIVER=$(find /opt -name "chromedriver" -type f 2>/dev/null | head -1) && \
+# DEBUG: Procurar onde está o ChromeDriver na imagem
+RUN echo "=== Procurando ChromeDriver ===" && \
+    find / -name "chromedriver" -type f 2>/dev/null || echo "ChromeDriver não encontrado via find" && \
+    which chromedriver || echo "which chromedriver: não encontrado" && \
+    ls -la /usr/bin/ | grep chrome || echo "Nada com 'chrome' em /usr/bin" && \
+    ls -la /usr/local/bin/ | grep chrome || echo "Nada com 'chrome' em /usr/local/bin" && \
+    echo "=== Fim da busca ==="
+
+# Tentar criar link para ChromeDriver se existir
+RUN CHROMEDRIVER=$(find / -name "chromedriver" -type f 2>/dev/null | head -1) && \
     if [ -n "$CHROMEDRIVER" ]; then \
+        echo "ChromeDriver encontrado em: $CHROMEDRIVER" && \
         ln -sf "$CHROMEDRIVER" /usr/local/bin/chromedriver && \
         chmod +x /usr/local/bin/chromedriver && \
-        echo "ChromeDriver linked: $CHROMEDRIVER"; \
+        ls -la /usr/local/bin/chromedriver; \
     else \
-        echo "WARNING: ChromeDriver not found in /opt"; \
+        echo "AVISO: ChromeDriver NÃO encontrado!"; \
     fi
 
 # Copiar requirements
@@ -60,7 +69,6 @@ COPY app.py .
 ENV DISPLAY=:99
 ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
 ENV SE_DRIVER_PATH=/usr/local/bin/chromedriver
-ENV CHROME_BIN=/usr/bin/google-chrome
 
 # Criar diretório para cache do Selenium e dar permissão
 RUN mkdir -p /root/.cache/selenium && chmod -R 777 /root/.cache
