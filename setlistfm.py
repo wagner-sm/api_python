@@ -13,10 +13,6 @@ import json
 import base64
 from io import BytesIO
 
-# Redireciona todos os prints para stderr
-original_stdout = sys.stdout
-sys.stdout = sys.stderr
-
 class SetlistFMScraperSelenium:
     def __init__(self, username, headless=True):
         self.username = username
@@ -510,14 +506,13 @@ def main():
         }))
         return
 
-    sys.stdout = original_stdout
-    print(json.dumps({
+    result = {
         "success": True,
         "message": f"{len(shows)} shows coletados",
-        "fileName": "setlisfm_completo.xlsx",
+        "fileName": "setlistfm_completo.xlsx",
         "file": file_base64
-    }))
-
+    }
+    print(json.dumps(result), flush=True)
 
 if __name__ == "__main__":
     main()
