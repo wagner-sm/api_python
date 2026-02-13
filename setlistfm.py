@@ -13,6 +13,7 @@ import sys
 import json
 import base64
 from io import BytesIO
+import os
 
 # Redireciona todos os prints para stderr
 original_stdout = sys.stdout
@@ -44,7 +45,7 @@ class SetlistFMScraperSelenium:
         }
 
     def setup_driver(self):
-        try:
+        try:          
             chrome_options = Options()
             
             if self.headless:
@@ -56,27 +57,39 @@ class SetlistFMScraperSelenium:
             chrome_options.add_argument('--disable-software-rasterizer')
             chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--remote-debugging-port=9222')
             chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
             
-            import os
+            # FORÇAR uso do ChromeDriver do sistema
+            chromedriver_path = '/usr/local/bin/chromedriver'
             
-            # Configurar caminhos explícitos
-            chrome_bin = os.environ.get('CHROME_BIN')
-            if chrome_bin and os.path.exists(chrome_bin):
-                chrome_options.binary_location = chrome_bin
-                print(f"🌐 Usando Chrome em: {chrome_bin}")
+            if not os.path.exists(chromedriver_path):
+                # Fallback: procurar em outros locais
+                possible_paths = [
+                    '/usr/bin/chromedriver',
+                    '/opt/selenium/chromedriver',
+                ]
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        chromedriver_path = path
+                        break
             
-            chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
-            if chromedriver_path and os.path.exists(chromedriver_path):
-                service = Service(executable_path=chromedriver_path)
-                self.driver = webdriver.Chrome(service=service, options=chrome_options)
-                print(f"🚗 Usando ChromeDriver em: {chromedriver_path}")
-            else:
-                self.driver = webdriver.Chrome(options=chrome_options)
+            print(f"🚗 Tentando usar ChromeDriver em: {chromedriver_path}")
+            print(f"🌐 Chrome existe: {os.path.exists('/usr/bin/google-chrome')}")
+            
+            service = Service(
+                executable_path=chromedriver_path,
+                log_output=sys.stderr
+            )
+            
+            self.driver = webdriver.Chrome(
+                service=service,
+                options=chrome_options
+            )
             
             self.driver.implicitly_wait(10)
             
-            print("✅ Selenium configurado")
+            print("✅ Selenium configurado com sucesso!")
             print(f"🎪 Dicionário de festivais carregado: {len(self.festival_cities)} festivais")
             return True
             
@@ -84,6 +97,14 @@ class SetlistFMScraperSelenium:
             print(f"❌ Erro ao configurar Selenium: {e}")
             import traceback
             print(traceback.format_exc())
+            
+            # Debug info
+            import os
+            print("\n🔍 DEBUG INFO:")
+            print(f"Python path: {sys.executable}")
+            print(f"Working directory: {os.getcwd()}")
+            print(f"Files in /usr/local/bin: {os.listdir('/usr/local/bin') if os.path.exists('/usr/local/bin') else 'N/A'}")
+            
             return False
 
     def identify_festival_city(self, local_text):
