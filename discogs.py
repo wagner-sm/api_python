@@ -7,7 +7,7 @@ from io import BytesIO
 
 # Substitua por seu nome de usuário e token do Discogs
 USERNAME = 'wsmetal'
-TOKEN = ' LfVhsGlTXOsxwvUCUJmXBPBiQnQuJjzpkvHAAflk'
+TOKEN = os.getenv("DISCOGS_KEY")
 
 # Cabeçalhos para autentica?
 headers = {
@@ -70,4 +70,5 @@ file_base64 = base64.b64encode(buffer.read()).decode()
 print(json.dumps({
     "file": file_base64,
     "fileName": "discogs_colecao.xlsx"
+
 }))
