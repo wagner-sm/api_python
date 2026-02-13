@@ -30,9 +30,10 @@ RUN apt-get update && \
     xdg-utils \
     libu2f-udev \
     libvulkan1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Google Chrome (maneira moderna)
+# Instalar Google Chrome
 RUN wget -q -O /usr/share/keyrings/google-linux-signing-key.gpg https://dl.google.com/linux/linux_signing_key.pub && \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-key.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
     apt-get update && \
@@ -44,15 +45,12 @@ RUN google-chrome --version
 
 # Instalar ChromeDriver compatível
 RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1) && \
-    echo "Chrome version: $CHROME_VERSION" && \
     CHROMEDRIVER_VERSION=$(wget -qO- "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}") && \
-    echo "ChromeDriver version: $CHROMEDRIVER_VERSION" && \
     wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" && \
     unzip -q chromedriver-linux64.zip && \
     mv chromedriver-linux64/chromedriver /usr/local/bin/ && \
     chmod +x /usr/local/bin/chromedriver && \
-    rm -rf chromedriver-linux64.zip chromedriver-linux64 && \
-    chromedriver --version
+    rm -rf chromedriver-linux64.zip chromedriver-linux64
 
 # Copiar requirements e instalar
 COPY requirements.txt .
@@ -71,5 +69,8 @@ ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 # Expor porta
 EXPOSE 5000
 
-# Rodar aplicação
+# Healthcheck para EASYPANEL
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s CMD curl -f http://localhost:5000/ || exit 1
+
+# Rodar aplicação (Flask deve estar configurado para 0.0.0.0)
 CMD ["python", "app.py"]
