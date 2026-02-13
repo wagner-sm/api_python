@@ -4,6 +4,7 @@ from openpyxl.styles import Font
 import base64
 import json
 from io import BytesIO
+import os
 
 # Substitua por seu nome de usuário e token do Discogs
 USERNAME = 'wsmetal'
@@ -72,3 +73,4 @@ print(json.dumps({
     "fileName": "discogs_colecao.xlsx"
 
 }))
+
