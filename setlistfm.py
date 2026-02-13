@@ -3,7 +3,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -13,7 +12,6 @@ import sys
 import json
 import base64
 from io import BytesIO
-import os
 
 # Redireciona todos os prints para stderr
 original_stdout = sys.stdout
@@ -45,7 +43,11 @@ class SetlistFMScraperSelenium:
         }
 
     def setup_driver(self):
-        try:          
+        import os
+        import sys
+        from selenium.webdriver.chrome.service import Service
+        
+        try:
             chrome_options = Options()
             
             if self.headless:
@@ -75,6 +77,7 @@ class SetlistFMScraperSelenium:
                         break
             
             print(f"🚗 Tentando usar ChromeDriver em: {chromedriver_path}")
+            print(f"📁 ChromeDriver existe: {os.path.exists(chromedriver_path)}")
             print(f"🌐 Chrome existe: {os.path.exists('/usr/bin/google-chrome')}")
             
             service = Service(
@@ -99,11 +102,21 @@ class SetlistFMScraperSelenium:
             print(traceback.format_exc())
             
             # Debug info
-            import os
             print("\n🔍 DEBUG INFO:")
             print(f"Python path: {sys.executable}")
             print(f"Working directory: {os.getcwd()}")
-            print(f"Files in /usr/local/bin: {os.listdir('/usr/local/bin') if os.path.exists('/usr/local/bin') else 'N/A'}")
+            
+            # Procurar ChromeDriver em todo o sistema
+            print("\n🔎 Procurando ChromeDriver:")
+            for search_path in ['/usr/local/bin', '/usr/bin', '/opt']:
+                if os.path.exists(search_path):
+                    try:
+                        files = os.listdir(search_path)
+                        chrome_files = [f for f in files if 'chrome' in f.lower()]
+                        if chrome_files:
+                            print(f"  {search_path}: {chrome_files}")
+                    except:
+                        pass
             
             return False
 
