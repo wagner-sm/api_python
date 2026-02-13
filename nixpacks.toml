@@ -1,0 +1,4 @@
+build:
+  type: dockerfile
+  path: .
+  dockerfile: Dockerfile
