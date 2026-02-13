@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -47,15 +48,32 @@ class SetlistFMScraperSelenium:
             chrome_options = Options()
             
             if self.headless:
-                chrome_options.add_argument('--headless')
+                chrome_options.add_argument('--headless=new')
             
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--disable-software-rasterizer')
+            chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
             
-            self.driver = webdriver.Chrome(options=chrome_options)
+            import os
+            
+            # Configurar caminhos explícitos
+            chrome_bin = os.environ.get('CHROME_BIN')
+            if chrome_bin and os.path.exists(chrome_bin):
+                chrome_options.binary_location = chrome_bin
+                print(f"🌐 Usando Chrome em: {chrome_bin}")
+            
+            chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
+            if chromedriver_path and os.path.exists(chromedriver_path):
+                service = Service(executable_path=chromedriver_path)
+                self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                print(f"🚗 Usando ChromeDriver em: {chromedriver_path}")
+            else:
+                self.driver = webdriver.Chrome(options=chrome_options)
+            
             self.driver.implicitly_wait(10)
             
             print("✅ Selenium configurado")
@@ -64,8 +82,8 @@ class SetlistFMScraperSelenium:
             
         except Exception as e:
             print(f"❌ Erro ao configurar Selenium: {e}")
-            print("💡 Você precisa instalar: pip install selenium")
-            print("💡 E ter o ChromeDriver instalado no sistema")
+            import traceback
+            print(traceback.format_exc())
             return False
 
     def identify_festival_city(self, local_text):
