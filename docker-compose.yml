@@ -7,6 +7,8 @@ services:
       - "5000:5000"
     environment:
       - PYTHONUNBUFFERED=1
+      # Variáveis que virão do GitHub Secrets ou do EasyPanel
+      - SETLISTFM_KEY=${SECRET_KEY}      
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
