@@ -71,6 +71,6 @@ file_base64 = base64.b64encode(buffer.read()).decode()
 print(json.dumps({
     "file": file_base64,
     "fileName": "discogs_colecao.xlsx"
-
 }))
+
 
