@@ -107,10 +107,15 @@ def run_setlistfm():
 
 @app.route('/run-vaipromo', methods=['POST'])
 def run_vaipromo():
-    """Executa o script vai_promo.py e retorna o resultado para o n8n"""
+    """Executa o script vai_promo.py recebendo config via body"""
     try:
+        config = request.get_json()
+        if not config or 'CONSULTAS' not in config:
+            return jsonify({'error': 'Body inválido, esperado {"CONSULTAS": [...]}'}), 400
+
         result = subprocess.run(
             [sys.executable, 'vai_promo.py'],
+            input=json.dumps(config),   # passa o config via stdin
             capture_output=True,
             text=True,
             timeout=600  # 10 minutos
