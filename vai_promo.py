@@ -164,9 +164,9 @@ class VaiPromoMonitor:
             return []
 
     # =======================
-    # CONSULTA
+    # CONSULTA — recebe browser já aberto
     # =======================
-    def executar_consulta(self, consulta):
+    def executar_consulta(self, browser, consulta):
         resultado = {
             "consulta": consulta,
             "timestamp": datetime.now().isoformat(),
@@ -174,43 +174,42 @@ class VaiPromoMonitor:
         }
 
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
-                page.goto(self.URL, timeout=60000)
+            # Abre nova página (aba) para cada consulta
+            page = browser.new_page()
+            page.goto(self.URL, timeout=60000)
 
-                page.get_by_role("button", name="Só ida ou volta").click()
-                self.preencher_localizacao(page, "departure", consulta["origem"])
-                self.preencher_localizacao(page, "arrival", consulta["destino"])
+            page.get_by_role("button", name="Só ida ou volta").click()
+            self.preencher_localizacao(page, "departure", consulta["origem"])
+            self.preencher_localizacao(page, "arrival", consulta["destino"])
 
-                page.get_by_role("textbox", name="Ida").nth(1).click()
-                self.selecionar_data(page, consulta["data"])
+            page.get_by_role("textbox", name="Ida").nth(1).click()
+            self.selecionar_data(page, consulta["data"])
 
-                page.evaluate(
-                    """() => {
-                        const form = document.querySelector('form');
-                        form && form.dispatchEvent(new Event('submit', { bubbles: true }));
-                    }"""
-                )
+            page.evaluate(
+                """() => {
+                    const form = document.querySelector('form');
+                    form && form.dispatchEvent(new Event('submit', { bubbles: true }));
+                }"""
+            )
 
-                page.wait_for_function(
-                    "() => location.href.includes('search') || document.querySelectorAll('div[class*=\"_content_\"]').length > 0",
-                    timeout=60000
-                )
+            page.wait_for_function(
+                "() => location.href.includes('search') || document.querySelectorAll('div[class*=\"_content_\"]').length > 0",
+                timeout=60000
+            )
 
-                for _ in range(4):
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    time.sleep(1)
+            for _ in range(4):
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                time.sleep(1)
 
-                self.wait_for_results(page)
-                resultado["voos"] = self.extrair_voos(page)
-                resultado["url"] = page.url
+            self.wait_for_results(page)
+            resultado["voos"] = self.extrair_voos(page)
+            resultado["url"] = page.url
 
-                browser.close()
+            page.close()
 
         except Exception as e:
             resultado["error"] = str(e)
-            logging.error(f"Erro na consulta: {e}")
+            logging.error(f"Erro na consulta {consulta}: {e}")
 
         return resultado
 
@@ -252,17 +251,21 @@ class VaiPromoMonitor:
         return "\n".join(linhas)
 
     # =======================
-    # EXECUÇÃO
+    # EXECUÇÃO — Playwright aberto uma única vez
     # =======================
     def executar(self):
-        for consulta in self.config["CONSULTAS"]:
-            logging.info(f"{consulta['origem']} → {consulta['destino']} - {consulta['data']}")
-            self.resultados.append(self.executar_consulta(consulta))
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
 
-        # Imprime JSON para o app.py capturar (n8n recebe isso)
+            for consulta in self.config["CONSULTAS"]:
+                logging.info(f"{consulta['origem']} → {consulta['destino']} - {consulta['data']}")
+                self.resultados.append(self.executar_consulta(browser, consulta))
+
+            browser.close()
+
         print(json.dumps({
-            "resultados": self.resultados,   # dados estruturados por consulta
-            "resumo": self.resumo_telegram()  # texto HTML pronto para o Telegram
+            "resultados": self.resultados,
+            "resumo": self.resumo_telegram()
         }, ensure_ascii=False))
 
         logging.info("✅ Execução concluída!")
