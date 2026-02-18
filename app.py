@@ -134,7 +134,7 @@ def run_vaipromo():
                 'stderr': result.stderr
             }), 500
 
-        json_start = output.rfind('{')
+        json_start = output.find('{')
         if json_start == -1:
             return jsonify({
                 'error': 'No JSON found in output',
