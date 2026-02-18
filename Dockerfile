@@ -1,8 +1,7 @@
 FROM python:3.11-slim
-
 WORKDIR /app
 
-# Instalar Chromium, ChromeDriver e dependências
+# Instalar dependências do sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
@@ -33,9 +32,16 @@ RUN chromium --version && chromedriver --version
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Instalar Playwright e seu Chromium (usado pelo vai_promo.py)
+RUN pip install playwright && \
+    playwright install chromium && \
+    playwright install-deps chromium
+
 # Copiar scripts
 COPY discogs.py .
 COPY setlistfm.py .
+COPY vai_promo.py .
+COPY config.json .
 COPY app.py .
 
 # Variáveis de ambiente
