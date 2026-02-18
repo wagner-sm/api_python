@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import sys
 import os
 import html
 from datetime import datetime
@@ -21,13 +22,10 @@ class VaiPromoMonitor:
         self.resultados = []
 
     # =======================
-    # CONFIG
+    # CONFIG — lê do stdin (enviado pelo app.py)
     # =======================
     def carregar_config(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(base_dir, "config.json")
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        config = json.loads(sys.stdin.read())
         logging.info(f"Configuração carregada: {len(config['CONSULTAS'])} consultas")
         return config
 
