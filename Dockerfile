@@ -41,6 +41,7 @@ RUN pip install playwright && \
 COPY discogs.py .
 COPY setlistfm.py .
 COPY vai_promo.py .
+COPY monitor.py .
 COPY app.py .
 
 # Variáveis de ambiente
