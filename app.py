@@ -3,7 +3,7 @@ import subprocess
 import json
 import sys
 
-from monitor_api import run_monitor
+from monitor import run_monitor
 
 app = Flask(__name__)
 
