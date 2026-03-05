@@ -1,0 +1,283 @@
+import json
+import logging
+import time
+import sys
+import os
+import html
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from playwright.sync_api import sync_playwright
+
+# =======================
+# LOGGING (vai para stderr, não interfere no JSON)
+# =======================
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
+
+
+class VaiPromoMonitor:
+    URL = "https://www.vaidepromo.com.br/passagens-aereas/"
+
+    def __init__(self):
+        self.config = self.carregar_config()
+        self.resultados = []
+
+    # =======================
+    # CONFIG — lê do stdin (enviado pelo app.py)
+    # =======================
+    def carregar_config(self):
+        config = json.loads(sys.stdin.read())
+        logging.info(f"Configuração carregada: {len(config['CONSULTAS'])} consultas")
+        return config
+
+    # =======================
+    # HELPERS
+    # =======================
+    def trigger_change(self, page, selector):
+        page.evaluate(
+            """(sel) => {
+                const el = document.querySelector(sel);
+                if (el) {
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+            }""",
+            selector
+        )
+
+    def preencher_localizacao(self, page, campo, sigla):
+        el = page.locator(f'[data-cy="{campo}"]')
+        el.click()
+        el.fill(sigla)
+        page.wait_for_selector(f'[role="option"]:has-text("{sigla}")', timeout=5000)
+        page.locator(f'[role="option"]:has-text("{sigla}")').first.click()
+        self.trigger_change(page, f'[data-cy="{campo}"]')
+
+    def clicar_como_humano(self, locator, page):
+        locator.scroll_into_view_if_needed()
+        locator.hover()
+        page.wait_for_timeout(150)
+        locator.click()
+        page.wait_for_timeout(300)
+
+    # =======================
+    # CALENDÁRIO
+    # =======================
+    def selecionar_data(self, page, data_str):
+        data = datetime.strptime(data_str, "%d/%m/%Y")
+        data_cy = data.strftime("%d-%m-%Y")
+
+        seletor_dia = f'button[data-cy="{data_cy}"]'
+        seletor_next = 'button[data-cy="data-range-picker-next"]'
+
+        page.wait_for_selector(seletor_next)
+
+        for _ in range(24):
+            dia = page.locator(seletor_dia)
+            if dia.count() > 0:
+                self.clicar_como_humano(dia.first, page)
+                page.evaluate(
+                    """(date) => {
+                        const input = document.querySelector('[data-cy="departure-date"] input');
+                        if (input) {
+                            input.value = date;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                            input.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                    }""",
+                    data_str
+                )
+                return
+
+            page.locator(seletor_next).first.click()
+            page.wait_for_timeout(600)
+
+        raise Exception("Data não encontrada no calendário")
+
+    # =======================
+    # RESULTADOS
+    # =======================
+    def wait_for_results(self, page, timeout=30):
+        start = time.time()
+        last = stable = 0
+
+        while time.time() - start < timeout:
+            count = page.locator('div[class*="_content_"]').count()
+            if count == last and count > 0:
+                stable += 1
+                if stable >= 3:
+                    return
+            else:
+                stable = 0
+            last = count
+            time.sleep(1)
+
+    # =======================
+    # EXTRAÇÃO
+    # =======================
+    def extrair_voos(self, page):
+        try:
+            return page.evaluate(
+                """() => {
+                    const cards = document.querySelectorAll('div[class*="_content_"]');
+                    const voos = [];
+
+                    cards.forEach(card => {
+                        const prices = [...card.querySelectorAll('strong')]
+                            .map(s => s.textContent.trim())
+                            .filter(t => t.includes('R$'))
+                            .map(t => ({
+                                text: t.replace(/\\u00a0/g,' '),
+                                value: parseFloat(
+                                    t.replace(/[^0-9,]/g,'')
+                                     .replace('.', '')
+                                     .replace(',', '.')
+                                )
+                            }))
+                            .filter(p => !isNaN(p.value));
+
+                        if (!prices.length) return;
+
+                        const final = prices.reduce((a,b) => a.value > b.value ? a : b);
+
+                        const airline =
+                            card.querySelector('img[alt]')?.alt ||
+                            card.querySelector('span[class*="iata"]')?.textContent?.trim() ||
+                            "Companhia não identificada";
+
+                        voos.push({
+                            companhia: airline,
+                            preco: final.text,
+                            valor: final.value
+                        });
+                    });
+
+                    const unique = {};
+                    voos.forEach(v => unique[v.companhia + v.valor] ||= v);
+
+                    return Object.values(unique).sort((a,b) => a.valor - b.valor);
+                }"""
+            )
+        except Exception as e:
+            logging.error(f"Erro ao extrair voos: {e}")
+            return []
+
+    # =======================
+    # CONSULTA — recebe browser já aberto
+    # =======================
+    def executar_consulta(self, browser, consulta):
+        resultado = {
+            "consulta": consulta,
+            "timestamp": datetime.now().isoformat(),
+            "voos": []
+        }
+
+        try:
+            # Abre nova página (aba) para cada consulta
+            page = browser.new_page()
+            page.goto(self.URL, timeout=60000)
+
+            page.get_by_role("button", name="Só ida ou volta").click()
+            self.preencher_localizacao(page, "departure", consulta["origem"])
+            self.preencher_localizacao(page, "arrival", consulta["destino"])
+
+            page.get_by_role("textbox", name="Ida").nth(1).click()
+            self.selecionar_data(page, consulta["data"])
+
+            page.evaluate(
+                """() => {
+                    const form = document.querySelector('form');
+                    form && form.dispatchEvent(new Event('submit', { bubbles: true }));
+                }"""
+            )
+
+            page.wait_for_function(
+                "() => location.href.includes('search') || document.querySelectorAll('div[class*=\"_content_\"]').length > 0",
+                timeout=60000
+            )
+
+            for _ in range(4):
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                time.sleep(1)
+
+            self.wait_for_results(page)
+            resultado["voos"] = self.extrair_voos(page)
+            resultado["url"] = page.url
+
+            page.close()
+
+        except Exception as e:
+            resultado["error"] = str(e)
+            logging.error(f"Erro na consulta {consulta}: {e}")
+
+        return resultado
+
+    # =======================
+    # RESUMO (texto HTML pronto para o Telegram via n8n)
+    # =======================
+    def resumo_telegram(self):
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+        linhas = [
+            "✈️ <b>VaiPromo Monitor</b>",
+            f"🕐 <i>Atualizado em {agora:%d/%m/%Y às %H:%M}</i>"
+        ]
+
+        for r in self.resultados:
+            c = r["consulta"]
+            linhas.append(
+                f"\n<b>{html.escape(c['origem'])} → {html.escape(c['destino'])} "
+                f"({html.escape(c['data'])})</b>"
+            )
+
+            if "error" in r:
+                linhas.append(f"❌ {html.escape(r['error'])}")
+                continue
+
+            for i, v in enumerate(r["voos"][:3]):
+                companhia = html.escape(v["companhia"])
+                preco = html.escape(v["preco"])
+
+                if i == 0:
+                    linhas.append(f"💰 <b>{companhia}</b> — {preco}")
+                else:
+                    linhas.append(f"#{i+1} {companhia} — {preco}")
+
+            if "url" in r:
+                url = html.escape(r["url"])
+                linhas.append(f'🔗 <a href="{url}">Ver no VaiPromo</a>')
+
+        return "\n".join(linhas)
+
+    # =======================
+    # EXECUÇÃO — Playwright aberto uma única vez
+    # =======================
+    def executar(self):
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                executable_path="/usr/bin/chromium",
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
+
+            for consulta in self.config["CONSULTAS"]:
+                logging.info(f"{consulta['origem']} → {consulta['destino']} - {consulta['data']}")
+                self.resultados.append(self.executar_consulta(browser, consulta))
+
+            browser.close()
+
+        print(json.dumps({
+            "resultados": self.resultados,
+            "resumo": self.resumo_telegram()
+        }, ensure_ascii=False))
+
+        logging.info("✅ Execução concluída!")
+
+
+def main():
+    VaiPromoMonitor().executar()
+
+
+if __name__ == "__main__":
+    main()
