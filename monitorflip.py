@@ -91,12 +91,11 @@ def main():
     company = get_airline(first_image_url)
 
     if price is not None:
-        price_str = f"{price:.2f}".replace(".", ",")
         print(json.dumps({
             "origin": origin.upper(),
             "destiny": destiny.upper(),
             "date": date,
-            "lowest_price": price_str,
+            "lowest_price": price,
             "company": company,
             "source": source_url
         }, ensure_ascii=False))
