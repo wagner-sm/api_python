@@ -4,6 +4,20 @@ import json
 import sys
 import re
 
+AIRLINES = {
+    "LA": "LATAM",
+    "G3": "Gol",
+    "AD": "Azul",
+}
+
+
+def get_airline(image_url):
+    if not image_url:
+        return None
+    match = re.search(r"/([A-Z0-9]+)\.(png|jpg|webp|svg)", image_url, re.IGNORECASE)
+    code = match.group(1).upper() if match else None
+    return AIRLINES.get(code, code)
+
 
 def fetch_flipmilhas(date, origin, destiny):
     params = {
@@ -74,14 +88,16 @@ def main():
         sys.exit(1)
 
     price, source_url, first_image_url = fetch_flipmilhas(date, origin, destiny)
+    company = get_airline(first_image_url)
 
-    if price is not None:     
+    if price is not None:
+        price_str = f"{price:.2f}".replace(".", ",")
         print(json.dumps({
             "origin": origin.upper(),
             "destiny": destiny.upper(),
             "date": date,
-            "lowest_price": price,
-            "first_image": first_image_url,
+            "lowest_price": price_str,
+            "company": company,
             "source": source_url
         }, ensure_ascii=False))
 
@@ -91,7 +107,7 @@ def main():
             "destiny": destiny.upper(),
             "date": date,
             "lowest_price": None,
-            "company": first_image_url,
+            "company": company,
             "error": "Price not found",
             "source": source_url
         }, ensure_ascii=False))
