@@ -34,6 +34,10 @@ def fetch_flipmilhas(date, origin, destiny):
     with urllib.request.urlopen(req, timeout=90) as resp:
         body = resp.read().decode("utf-8")
 
+    # Extract first image URL from markdown image syntax ![...](url)
+    image_match = re.search(r"!\[.*?\]\((https?://[^)]+)\)", body)
+    first_image_url = image_match.group(1) if image_match else None
+
     title_match = re.search(
         r"Title:\s*Passagens\s+\w+\s*→\s*\w+\s+a partir de\s*R\$\s*([\d.,]+)",
         body
@@ -41,14 +45,14 @@ def fetch_flipmilhas(date, origin, destiny):
 
     if title_match:
         price_str = title_match.group(1).replace(".", "").replace(",", ".")
-        return float(price_str), target_url
+        return float(price_str), target_url, first_image_url
 
     alt_match = re.search(r"R\$\s*([\d.,]+)", body)
     if alt_match:
         price_str = alt_match.group(1).replace(".", "").replace(",", ".")
-        return float(price_str), target_url
+        return float(price_str), target_url, first_image_url
 
-    return None, target_url
+    return None, target_url, first_image_url
 
 
 def main():
@@ -69,7 +73,7 @@ def main():
         }))
         sys.exit(1)
 
-    price, source_url = fetch_flipmilhas(date, origin, destiny)
+    price, source_url, first_image_url = fetch_flipmilhas(date, origin, destiny)
 
     if price is not None:     
         print(json.dumps({
@@ -77,6 +81,7 @@ def main():
             "destiny": destiny.upper(),
             "date": date,
             "lowest_price": price,
+            "first_image": first_image_url,
             "source": source_url
         }, ensure_ascii=False))
 
@@ -86,6 +91,7 @@ def main():
             "destiny": destiny.upper(),
             "date": date,
             "lowest_price": None,
+            "company": first_image_url,
             "error": "Price not found",
             "source": source_url
         }, ensure_ascii=False))
