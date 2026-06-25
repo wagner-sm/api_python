@@ -137,6 +137,47 @@ def run_bluesky():
         return jsonify({"error": "Unexpected error", "details": str(e), "type": type(e).__name__}), 500
 
 
+@app.route('/run-monitorflip', methods=['POST'])
+def run_monitorflip():
+    try:
+        body = request.get_json() or {}
+
+        date = body.get("date", "").strip()
+        origin = body.get("origin", "").strip()
+        destiny = body.get("destiny", "").strip()
+
+        if not date or not origin or not destiny:
+            return jsonify({"error": "Missing required fields: date, origin, destiny"}), 400
+
+        payload = json.dumps({"date": date, "origin": origin, "destiny": destiny})
+        result = subprocess.run(
+            [sys.executable, "monitorflip.py"],
+            input=payload,
+            capture_output=True, text=True, timeout=120
+        )
+
+        if result.returncode != 0:
+            return jsonify({
+                "error": "Script failed",
+                "stderr": result.stderr,
+                "stdout": result.stdout,
+                "returncode": result.returncode
+            }), 500
+
+        output = result.stdout.strip()
+        if not output:
+            return jsonify({"error": "Script returned empty output", "stderr": result.stderr}), 500
+
+        return jsonify(json.loads(output)), 200
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Script timeout (2 min)"}), 504
+    except json.JSONDecodeError as e:
+        return jsonify({"error": "Invalid JSON in output", "json_error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e), "type": type(e).__name__}), 500
+
+
 @app.route('/run-cmc', methods=['POST'])
 def run_cmc():
     try:

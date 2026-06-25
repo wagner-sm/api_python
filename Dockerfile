@@ -41,6 +41,7 @@ COPY setlistfm.py .
 COPY monitor.py .
 COPY bluesky.py .
 COPY cmc.py .
+COPY monitorflip.py .
 COPY app.py .
 
 # Variáveis de ambiente
