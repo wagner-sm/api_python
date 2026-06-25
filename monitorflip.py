@@ -17,6 +17,7 @@ def fetch_flipmilhas(date, origin, destiny):
         "origin": origin.upper(),
         "rooms": "1",
     }
+
     qs = urllib.parse.urlencode(params)
     target_url = f"https://flipmilhas.com/passagens?{qs}"
     jina_url = f"https://r.jina.ai/{target_url}"
@@ -29,6 +30,7 @@ def fetch_flipmilhas(date, origin, destiny):
             "X-Timeout": "30",
         },
     )
+
     with urllib.request.urlopen(req, timeout=90) as resp:
         body = resp.read().decode("utf-8")
 
@@ -36,16 +38,17 @@ def fetch_flipmilhas(date, origin, destiny):
         r"Title:\s*Passagens\s+\w+\s*→\s*\w+\s+a partir de\s*R\$\s*([\d.,]+)",
         body
     )
+
     if title_match:
         price_str = title_match.group(1).replace(".", "").replace(",", ".")
-        return float(price_str)
+        return float(price_str), target_url
 
     alt_match = re.search(r"R\$\s*([\d.,]+)", body)
     if alt_match:
         price_str = alt_match.group(1).replace(".", "").replace(",", ".")
-        return float(price_str)
+        return float(price_str), target_url
 
-    return None
+    return None, target_url
 
 
 def main():
@@ -66,18 +69,20 @@ def main():
         }))
         sys.exit(1)
 
-    price = fetch_flipmilhas(date, origin, destiny)
+    price, source_url = fetch_flipmilhas(date, origin, destiny)
 
     if price is not None:
         price_str = f"{price:.2f}".replace(".", ",")
+
         print(json.dumps({
             "origin": origin.upper(),
             "destiny": destiny.upper(),
             "date": date,
             "lowest_price": price_str,
             "currency": "BRL",
-            "source": "flipmilhas"
+            "source": source_url
         }, ensure_ascii=False))
+
     else:
         print(json.dumps({
             "origin": origin.upper(),
@@ -85,7 +90,7 @@ def main():
             "date": date,
             "lowest_price": None,
             "error": "Price not found",
-            "source": "flipmilhas"
+            "source": source_url
         }, ensure_ascii=False))
 
 
