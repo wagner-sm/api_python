@@ -71,15 +71,12 @@ def main():
 
     price, source_url = fetch_flipmilhas(date, origin, destiny)
 
-    if price is not None:
-        price_str = f"{price:.2f}".replace(".", ",")
-
+    if price is not None:     
         print(json.dumps({
             "origin": origin.upper(),
             "destiny": destiny.upper(),
             "date": date,
-            "lowest_price": price_str,
-            "currency": "BRL",
+            "lowest_price": price,
             "source": source_url
         }, ensure_ascii=False))
 
